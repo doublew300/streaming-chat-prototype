@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steuerchat - Web Testing Playground</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Socket.io Client CDN -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0a0f1e;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --primary: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            --text-primary: #ffffff;
+            --text-secondary: #8e9bb4;
+            --border: rgba(255, 255, 255, 0.08);
+            --status-connected: #10b981;
+            --status-offline: #ef4444;
+            --status-reconnecting: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            height: 90vh;
+            background: radial-gradient(circle at top, #141c38 0%, #0a0f1e 100%);
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Header styling */
+        header {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+        }
+
+        .header-title h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: var(--primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.connected {
+            background-color: var(--status-connected);
+            box-shadow: 0 0 10px var(--status-connected);
+        }
+
+        .status-dot.offline {
+            background-color: var(--status-offline);
+            box-shadow: 0 0 10px var(--status-offline);
+        }
+
+        .status-dot.reconnecting {
+            background-color: var(--status-reconnecting);
+            box-shadow: 0 0 10px var(--status-reconnecting);
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(1.2); opacity: 1; }
+        }
+
+        /* Simulator controller */
+        .simulator-bar {
+            background: rgba(239, 68, 68, 0.08);
+            border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .simulator-btn {
+            background: #ef4444;
+            color: #fff;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.75rem;
+            transition: all 0.2s ease;
+        }
+
+        .simulator-btn:hover {
+            background: #dc2626;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+        }
+
+        .simulator-btn:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Chat history area */
+        .chat-history {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .chat-history::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 80%;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .message.bot {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .message.user .bubble {
+            background: var(--primary);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.15);
+        }
+
+        .message.bot .bubble {
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        .timestamp {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            padding: 0 4px;
+        }
+
+        .streaming-indicator {
+            font-size: 0.75rem;
+            color: #00f2fe;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 20px 8px 20px;
+            animation: fade 1.5s infinite alternate;
+        }
+
+        @keyframes fade {
+            0% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        /* Input section */
+        .input-area {
+            padding: 15px 20px 25px 20px;
+            background: rgba(10, 15, 30, 0.95);
+            border-top: 1px solid var(--border);
+            border-bottom-left-radius: 24px;
+            border-bottom-right-radius: 24px;
+        }
+
+        .form-container {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            padding: 12px 16px;
+            border-radius: 14px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        input[type="text"]:focus {
+            border-color: #00f2fe;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border-radius: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-send {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(0, 242, 254, 0.2);
+        }
+
+        .btn-send:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(0, 242, 254, 0.3);
+        }
+
+        .btn-send:disabled {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #fff;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-stop:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(239, 68, 68, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <div class="header-title">
+            <h1>Steuerchat</h1>
+            <p>Web testing playground</p>
+        </div>
+        <div class="status-badge">
+            <span id="status-dot" class="status-dot offline"></span>
+            <span id="status-text">Offline</span>
+        </div>
+    </header>
+
+    <!-- Simulator controller bar -->
+    <div class="simulator-bar">
+        <span>Simulate 5s Airplane Mode disconnect:</span>
+        <button id="btn-simulate" class="simulator-btn" disabled>Simulate</button>
+    </div>
+
+    <!-- Message history list -->
+    <div id="chat-history" class="chat-history">
+        <!-- Welcoming placeholder -->
+        <div class="message bot">
+            <div class="bubble">
+                Hello! This is an interactive web client built to verify your NestJS websocket streaming backend. Make sure your server is running on port 3000, then try sending a message!
+            </div>
+            <div class="timestamp">Just now</div>
+        </div>
+    </div>
+
+    <div id="streaming-label" class="streaming-indicator" style="display: none;">
+        <span>⚡ Streaming response...</span>
+    </div>
+
+    <!-- Input footer -->
+    <div class="input-area">
+        <div class="form-container">
+            <input type="text" id="input-message" placeholder="Type a message..." autocomplete="off">
+            <button id="btn-action" class="btn btn-send" disabled>Send</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socketUrl = 'http://localhost:3000';
+    let socket;
+    
+    // Persistent Session UUID in localStorage
+    let sessionId = localStorage.getItem('webPlaygroundSessionId');
+    if (!sessionId) {
+        sessionId = 'web_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('webPlaygroundSessionId', sessionId);
+    }
+    
+    let activeMessageId = null;
+    let lastReceivedIndex = -1;
+    let isStreaming = false;
+
+    // DOM References
+    const chatHistory = document.getElementById('chat-history');
+    const inputMessage = document.getElementById('input-message');
+    const btnAction = document.getElementById('btn-action');
+    const btnSimulate = document.getElementById('btn-simulate');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const streamingLabel = document.getElementById('streaming-label');
+
+    // Initialize connection
+    function connectSocket() {
+        updateStatus('connecting', 'Connecting...');
+        
+        socket = io(socketUrl, {
+            query: { sessionId },
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 3000,
+            timeout: 5000
+        });
+
+        // Native socket lifecycle events
+        socket.on('connect', () => {
+            console.log('Socket connected successfully!');
+            updateStatus('connected', 'Connected');
+            btnSimulate.disabled = false;
+            
+            // Check if we need to resume an interrupted stream
+            if (isStreaming && activeMessageId) {
+                console.log(`Auto-resuming session ${sessionId} from index ${lastReceivedIndex}`);
+                socket.emit('resume_stream', { sessionId, lastReceivedIndex });
+            }
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Socket disconnected!');
+            updateStatus('offline', 'Offline');
+            btnSimulate.disabled = true;
+        });
+
+        socket.on('connect_error', () => {
+            updateStatus('offline', 'Offline');
+            btnSimulate.disabled = true;
+        });
+
+        // Predefined Chat events
+        socket.on('stream_chunk', (data) => {
+            console.log('Received chunk:', data);
+            const { messageId, chunkIndex, text, isFinished } = data;
+            
+            if (activeMessageId !== messageId) {
+                activeMessageId = messageId;
+                lastReceivedIndex = -1;
+                setStreamingState(true);
+                // Create new bot message container
+                createBotMessagePlaceholder(messageId);
+            }
+
+            // Verify order
+            if (chunkIndex > lastReceivedIndex) {
+                lastReceivedIndex = chunkIndex;
+                appendChunkToMessage(messageId, text);
+
+                if (isFinished) {
+                    setStreamingState(false);
+                    activeMessageId = null;
+                    lastReceivedIndex = -1;
+                }
+            }
+        });
+
+        socket.on('stream_cancelled', (data) => {
+            console.log('Stream cancelled:', data);
+            if (data.messageId === activeMessageId || activeMessageId) {
+                markMessageAsCancelled(activeMessageId || data.messageId);
+                setStreamingState(false);
+                activeMessageId = null;
+                lastReceivedIndex = -1;
+            }
+        });
+    }
+
+    // Connect immediately
+    connectSocket();
+
+    // Event Listeners
+    inputMessage.addEventListener('input', () => {
+        if (!isStreaming) {
+            btnAction.disabled = inputMessage.value.trim() === '';
+        }
+    });
+
+    inputMessage.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !btnAction.disabled) {
+            handleAction();
+        }
+    });
+
+    btnAction.addEventListener('click', handleAction);
+
+    btnSimulate.addEventListener('click', () => {
+        if (!socket || !socket.connected) return;
+        
+        console.log('Simulating 5-second airplane mode disconnect...');
+        btnSimulate.disabled = true;
+        
+        // Manually close connection
+        socket.disconnect();
+        updateStatus('offline', 'Offline (Simulated)');
+        
+        // Append system notification to chat
+        appendSystemMessage("⚠️ Connection lost. Simulating 5s offline state...");
+        
+        // Wait 5 seconds, then reconnect
+        setTimeout(() => {
+            appendSystemMessage("⚡ Network recovered. Reconnecting...");
+            socket.connect();
+        }, 5000);
+    });
+
+    // Handle Send / Stop Action
+    function handleAction() {
+        if (isStreaming) {
+            // Send cancellation
+            if (activeMessageId) {
+                socket.emit('cancel_stream', { sessionId, messageId: activeMessageId });
+                // Optimistically cancel UI
+                markMessageAsCancelled(activeMessageId);
+                setStreamingState(false);
+                activeMessageId = null;
+                lastReceivedIndex = -1;
+            }
+        } else {
+            const text = inputMessage.value.trim();
+            if (!text) return;
+
+            const userMsgId = 'user_' + Date.now();
+            const botMsgId = 'bot_' + Date.now();
+
+            // Append User Message to UI
+            appendUserMessage(text);
+            inputMessage.value = '';
+            btnAction.disabled = true;
+
+            // Prepare UI state for bot streaming
+            activeMessageId = botMsgId;
+            lastReceivedIndex = -1;
+            setStreamingState(true);
+            
+            // Create bot message in UI
+            createBotMessagePlaceholder(botMsgId);
+
+            // Emit to server
+            socket.emit('send_message', {
+                sessionId,
+                messageId: botMsgId,
+                text
+            });
+        }
+    }
+
+    // UI Helper Functions
+    function updateStatus(state, label) {
+        statusDot.className = `status-dot ${state}`;
+        statusText.innerText = label;
+    }
+
+    function setStreamingState(streaming) {
+        isStreaming = streaming;
+        if (streaming) {
+            streamingLabel.style.display = 'flex';
+            btnAction.className = 'btn btn-stop';
+            btnAction.innerText = 'Stop';
+            btnAction.disabled = false;
+            inputMessage.disabled = true;
+            inputMessage.placeholder = 'Streaming, controls locked...';
+        } else {
+            streamingLabel.style.display = 'none';
+            btnAction.className = 'btn btn-send';
+            btnAction.innerText = 'Send';
+            btnAction.disabled = inputMessage.value.trim() === '';
+            inputMessage.disabled = false;
+            inputMessage.placeholder = 'Type a message...';
+            inputMessage.focus();
+        }
+    }
+
+    function appendUserMessage(text) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message user';
+        msgDiv.innerHTML = `
+            <div class="bubble">${escapeHTML(text)}</div>
+            <div class="timestamp">${getCurrentTime()}</div>
+        `;
+        chatHistory.appendChild(msgDiv);
+        scrollToBottom();
+    }
+
+    function createBotMessagePlaceholder(messageId) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message bot';
+        msgDiv.id = `msg-${messageId}`;
+        msgDiv.innerHTML = `
+            <div class="bubble text-placeholder">●</div>
+            <div class="timestamp">${getCurrentTime()}</div>
+        `;
+        chatHistory.appendChild(msgDiv);
+        scrollToBottom();
+    }
+
+    function appendChunkToMessage(messageId, chunk) {
+        const msgDiv = document.getElementById(`msg-${messageId}`);
+        if (!msgDiv) return;
+
+        const bubble = msgDiv.querySelector('.bubble');
+        if (bubble.classList.contains('text-placeholder')) {
+            bubble.classList.remove('text-placeholder');
+            bubble.innerText = chunk;
+        } else {
+            // Spacing filter for punctuation marks
+            const punctuations = ['.', ',', '!', '?', ';', ':'];
+            if (punctuations.includes(chunk)) {
+                bubble.innerText += chunk;
+            } else {
+                bubble.innerText += ' ' + chunk;
+            }
+        }
+        scrollToBottom();
+    }
+
+    function markMessageAsCancelled(messageId) {
+        const msgDiv = document.getElementById(`msg-${messageId}`);
+        if (!msgDiv) return;
+
+        const bubble = msgDiv.querySelector('.bubble');
+        if (bubble.classList.contains('text-placeholder')) {
+            bubble.classList.remove('text-placeholder');
+            bubble.innerText = '🛑 [Stream Stopped]';
+        } else {
+            bubble.innerText += ' 🛑 [Stream Stopped]';
+        }
+        scrollToBottom();
+    }
+
+    function appendSystemMessage(text) {
+        const sysDiv = document.createElement('div');
+        sysDiv.style.alignSelf = 'center';
+        sysDiv.style.fontSize = '0.75rem';
+        sysDiv.style.color = '#ef4444';
+        sysDiv.style.background = 'rgba(239, 68, 68, 0.05)';
+        sysDiv.style.padding = '4px 12px';
+        sysDiv.style.borderRadius = '50px';
+        sysDiv.style.border = '1px solid rgba(239, 68, 68, 0.1)';
+        sysDiv.innerText = text;
+        
+        chatHistory.appendChild(sysDiv);
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function getCurrentTime() {
+        const now = new Date();
+        return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHTML(str) {
+        return str.replace(/[&<>'"]/g, 
+            tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+        );
+    }
+</script>
+</body>
+</html>
