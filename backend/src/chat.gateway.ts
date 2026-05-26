@@ -36,6 +36,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Map to track active sessions
   private sessions = new Map<string, StreamSession>();
 
+  // Track the last message timestamp per session to prevent spamming/rate limit (1s)
+  private lastMessageTimes = new Map<string, number>();
+
   // Predefined long texts (~500 words each) for the bot response
   private presetTexts = [
     // Story 1: The Swiss Clockmaker (approx 450 words)
@@ -57,6 +60,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDisconnect(client: Socket) {
     console.log(`Client disconnected: Socket ID = ${client.id}`);
     
+    // Clean up rate limit state for disconnected client if no active stream session exists for it
+    const querySessionId = client.handshake.query?.sessionId as string;
+    if (querySessionId && !this.sessions.has(querySessionId)) {
+      this.lastMessageTimes.delete(querySessionId);
+      console.log(`Rate limiting status cleaned up for disconnected session: ${querySessionId}`);
+    }
+
     // We do NOT delete the session immediately! We want to support resume.
     // We just find the session and log that the socket is gone.
     for (const [sessionId, session] of this.sessions.entries()) {
@@ -70,24 +80,36 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('send_message')
   handleSendMessage(
-    @MessageBody() data: { sessionId: string; messageId: string; text: string },
+    @MessageBody() data: { sessionId: string; messageId: string; text: string; streamDelay?: number; customText?: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const { sessionId, messageId, text } = data;
-    console.log(`Received send_message: sessionId=${sessionId}, messageId=${messageId}, text="${text}"`);
+    const { sessionId, messageId, text, streamDelay, customText } = data;
+    console.log(`Received send_message: sessionId=${sessionId}, messageId=${messageId}, text="${text}", streamDelay=${streamDelay}, hasCustomText=${!!customText}`);
 
     if (!sessionId || !messageId) {
       client.emit('stream_error', { messageId, error: 'Missing sessionId or messageId' });
       return;
     }
 
+    // Rate limiting: 1 message per second per sessionId
+    const now = Date.now();
+    const lastTime = this.lastMessageTimes.get(sessionId) || 0;
+    if (now - lastTime < 1000) {
+      console.warn(`Rate limit exceeded for session ${sessionId}. Limit is 1 msg/sec.`);
+      client.emit('stream_error', {
+        messageId,
+        error: 'Rate limit exceeded. Please wait 1 second between messages.',
+      });
+      return;
+    }
+    this.lastMessageTimes.set(sessionId, now);
+
     // Force-remove any existing session for this client to avoid overlapping streams
     // and prevent stale cleanup timeouts from deleting the new session
     this.forceDeleteSession(sessionId);
 
-    // Select a random long text
-    const randomIndex = Math.floor(Math.random() * this.presetTexts.length);
-    const selectedText = this.presetTexts[randomIndex];
+    // Select text (allow custom override for testing/playground)
+    const selectedText = customText ? customText : this.presetTexts[Math.floor(Math.random() * this.presetTexts.length)];
     
     // Split by space/whitespace into words
     const words = selectedText.split(/\s+/);
@@ -106,10 +128,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.sessions.set(sessionId, session);
 
-    // Start streaming: 5 words per second means 1 word every 200ms
+    // Start streaming: standard is 200ms, customizable for fast E2E tests
+    const delayMs = typeof streamDelay === 'number' ? streamDelay : 200;
     session.timer = setInterval(() => {
       this.streamNextWord(sessionId);
-    }, 200);
+    }, delayMs);
   }
 
   @SubscribeMessage('cancel_stream')
@@ -139,7 +162,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const session = this.sessions.get(sessionId);
     if (!session) {
-      console.log(`No active session found for sessionId=${sessionId} to resume.`);
+      console.log(`No active session found for sessionId=${sessionId} to resume. Emitting stream_error.`);
+      client.emit('stream_error', { sessionId, error: 'Session expired or not found' });
       return;
     }
 
@@ -147,8 +171,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     session.socketId = client.id;
     console.log(`Session ${sessionId} re-associated with new Socket ID = ${client.id}`);
 
-    // Fast catch-up: Send all chunks from lastReceivedIndex + 1 to session.sentChunks.length - 1
-    const missingStartIndex = lastReceivedIndex + 1;
+    // Validate and sanitize lastReceivedIndex to prevent negative / out-of-bound indexes
+    let validatedIndex = lastReceivedIndex;
+    if (typeof validatedIndex !== 'number' || isNaN(validatedIndex) || validatedIndex < -1) {
+      validatedIndex = -1;
+    }
+    if (validatedIndex >= session.sentChunks.length) {
+      validatedIndex = session.sentChunks.length - 1;
+    }
+
+    // Fast catch-up: Send all chunks from validatedIndex + 1 to session.sentChunks.length - 1
+    const missingStartIndex = validatedIndex + 1;
     const missingEndIndex = session.sentChunks.length;
 
     console.log(`Resuming session ${sessionId}. Sending missing chunks from index ${missingStartIndex} to ${missingEndIndex - 1}`);
@@ -163,8 +196,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     }
 
-    // If the stream was already finished while offline, signal completion
-    if (session.isFinished && missingStartIndex >= session.words.length) {
+    // If the stream was already finished while offline, signal completion (only if client is not fully caught up yet)
+    if (session.isFinished && missingStartIndex >= session.words.length && validatedIndex < session.words.length - 1) {
       client.emit('stream_chunk', {
         messageId: session.messageId,
         chunkIndex: session.words.length - 1,
@@ -230,6 +263,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         session.cleanupTimeout = null;
       }
       this.sessions.delete(sessionId);
+      this.lastMessageTimes.delete(sessionId);
       console.log(`Session ${sessionId} force-deleted.`);
     }
   }
@@ -252,6 +286,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Keep finished sessions briefly so a reconnecting client can still catch up
       session.cleanupTimeout = setTimeout(() => {
         this.sessions.delete(sessionId);
+        this.lastMessageTimes.delete(sessionId);
         console.log(`Session ${sessionId} memory released.`);
       }, 5 * 60 * 1000);
     }

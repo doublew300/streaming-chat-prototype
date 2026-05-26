@@ -28,6 +28,7 @@ class WebSocketManager: ObservableObject {
     // Closures to notify the ViewModel of incoming data
     var onChunkReceived: ((_ messageId: String, _ text: String, _ isFinished: Bool) -> Void)?
     var onStreamCancelled: ((_ messageId: String) -> Void)?
+    var onStreamError: ((_ messageId: String?, _ sessionId: String?, _ error: String) -> Void)?
     
     private init() {
         setupSessionId()
@@ -149,6 +150,24 @@ class WebSocketManager: ObservableObject {
                 self.activeMessageId = nil
                 self.lastReceivedIndex = -1
                 self.onStreamCancelled?(messageId)
+            }
+        }
+        
+        socket?.on("stream_error") { [weak self] data, ack in
+            guard let self = self,
+                  let dict = data.first as? [String: Any],
+                  let error = dict["error"] as? String else {
+                return
+            }
+            let messageId = dict["messageId"] as? String
+            let sessionId = dict["sessionId"] as? String
+            
+            DispatchQueue.main.async {
+                print("Stream error received: \(error)")
+                self.isStreaming = false
+                self.activeMessageId = nil
+                self.lastReceivedIndex = -1
+                self.onStreamError?(messageId, sessionId, error)
             }
         }
     }

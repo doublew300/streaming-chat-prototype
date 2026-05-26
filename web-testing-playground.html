@@ -12,11 +12,12 @@
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <style>
         :root {
-            --bg-dark: #0a0f1e;
+            --bg-dark: #04060f;
             --bg-card: rgba(255, 255, 255, 0.03);
             --primary: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-            --text-primary: #ffffff;
-            --text-secondary: #8e9bb4;
+            --accent-stop: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
             --border: rgba(255, 255, 255, 0.08);
             --status-connected: #10b981;
             --status-offline: #ef4444;
@@ -31,7 +32,10 @@
 
         body {
             font-family: 'Outfit', sans-serif;
-            background-color: var(--bg-dark);
+            background: 
+                radial-gradient(circle at 15% 20%, rgba(0, 242, 254, 0.04) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(79, 172, 254, 0.04) 0%, transparent 40%),
+                var(--bg-dark);
             color: var(--text-primary);
             display: flex;
             justify-content: center;
@@ -44,52 +48,64 @@
             width: 100%;
             max-width: 480px;
             height: 90vh;
-            background: radial-gradient(circle at top, #141c38 0%, #0a0f1e 100%);
-            border-radius: 24px;
-            border: 1px solid var(--border);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            background: rgba(10, 15, 30, 0.65);
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            box-shadow: 0 30px 70px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.1);
             display: flex;
             flex-direction: column;
             position: relative;
+            animation: app-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes app-fade-in {
+            from { opacity: 0; transform: scale(0.97) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
         }
 
         /* Header styling */
         header {
-            padding: 20px;
+            padding: 24px 20px;
             background: rgba(255, 255, 255, 0.02);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(15px);
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-top-left-radius: 24px;
-            border-top-right-radius: 24px;
+            border-top-left-radius: 28px;
+            border-top-right-radius: 28px;
         }
 
         .header-title h1 {
-            font-size: 1.25rem;
+            font-size: 1.35rem;
             font-weight: 700;
             background: var(--primary);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
         }
 
         .header-title p {
             font-size: 0.75rem;
             color: var(--text-secondary);
-            margin-top: 2px;
+            margin-top: 3px;
+            font-weight: 500;
         }
 
         .status-badge {
             display: flex;
             align-items: center;
             gap: 8px;
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(255, 255, 255, 0.04);
             border: 1px solid var(--border);
-            padding: 6px 12px;
+            padding: 6px 14px;
             border-radius: 50px;
             font-size: 0.75rem;
             font-weight: 600;
+            letter-spacing: 0.2px;
+            transition: all 0.3s ease;
         }
 
         .status-dot {
@@ -97,60 +113,75 @@
             height: 8px;
             border-radius: 50%;
             display: inline-block;
+            transition: all 0.3s ease;
         }
 
         .status-dot.connected {
             background-color: var(--status-connected);
-            box-shadow: 0 0 10px var(--status-connected);
+            animation: greenGlow 2s infinite alternate;
         }
 
         .status-dot.offline {
             background-color: var(--status-offline);
-            box-shadow: 0 0 10px var(--status-offline);
+            animation: redGlow 2s infinite alternate;
         }
 
         .status-dot.reconnecting {
             background-color: var(--status-reconnecting);
-            box-shadow: 0 0 10px var(--status-reconnecting);
-            animation: pulse 1s infinite alternate;
+            animation: amberGlow 1s infinite alternate;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(0.8); opacity: 0.5; }
-            100% { transform: scale(1.2); opacity: 1; }
+        @keyframes greenGlow {
+            0% { box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); transform: scale(0.9); }
+            100% { box-shadow: 0 0 14px rgba(16, 185, 129, 0.8), 0 0 20px rgba(16, 185, 129, 0.4); transform: scale(1.1); }
+        }
+
+        @keyframes redGlow {
+            0% { box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); transform: scale(0.9); }
+            100% { box-shadow: 0 0 14px rgba(239, 68, 68, 0.8); transform: scale(1.1); }
+        }
+
+        @keyframes amberGlow {
+            0% { box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); transform: scale(0.9); }
+            100% { box-shadow: 0 0 14px rgba(245, 158, 11, 0.8); transform: scale(1.2); }
         }
 
         /* Simulator controller */
         .simulator-bar {
-            background: rgba(239, 68, 68, 0.08);
-            border-bottom: 1px solid rgba(239, 68, 68, 0.2);
-            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.01);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-size: 0.8rem;
+            color: var(--text-secondary);
         }
 
         .simulator-btn {
-            background: #ef4444;
-            color: #fff;
-            border: none;
-            padding: 4px 10px;
-            border-radius: 6px;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            padding: 5px 12px;
+            border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
             font-family: inherit;
             font-size: 0.75rem;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .simulator-btn:hover {
-            background: #dc2626;
-            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+        .simulator-btn:hover:not(:disabled) {
+            background: #ef4444;
+            color: #fff;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+            border-color: transparent;
         }
 
         .simulator-btn:disabled {
-            background: #4b5563;
+            background: rgba(255, 255, 255, 0.02);
+            color: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.03);
             cursor: not-allowed;
             box-shadow: none;
         }
@@ -158,11 +189,11 @@
         /* Chat history area */
         .chat-history {
             flex: 1;
-            padding: 20px;
+            padding: 24px 20px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 18px;
         }
 
         .chat-history::-webkit-scrollbar {
@@ -170,14 +201,24 @@
         }
 
         .chat-history::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+        }
+
+        .chat-history::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.15);
         }
 
         .message {
             display: flex;
             flex-direction: column;
-            max-width: 80%;
+            max-width: 82%;
+            animation: bubble-entrance 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes bubble-entrance {
+            from { opacity: 0; transform: translateY(12px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
         .message.user {
@@ -191,18 +232,20 @@
         }
 
         .bubble {
-            padding: 12px 16px;
-            border-radius: 18px;
-            font-size: 0.9rem;
-            line-height: 1.4;
+            padding: 12px 18px;
+            border-radius: 20px;
+            font-size: 0.92rem;
+            line-height: 1.45;
             word-break: break-word;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
         }
 
         .message.user .bubble {
             background: var(--primary);
             color: #fff;
             border-bottom-right-radius: 4px;
-            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.15);
+            box-shadow: 0 8px 24px rgba(0, 242, 254, 0.15);
+            font-weight: 500;
         }
 
         .message.bot .bubble {
@@ -212,35 +255,49 @@
             border: 1px solid var(--border);
         }
 
+        .bubble.text-placeholder {
+            animation: breathing 0.8s infinite alternate ease-in-out;
+            color: #00f2fe;
+            font-size: 1.1rem;
+            padding: 10px 24px;
+        }
+
+        @keyframes breathing {
+            0% { opacity: 0.3; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1.1); }
+        }
+
         .timestamp {
             font-size: 0.65rem;
             color: var(--text-secondary);
-            margin-top: 4px;
-            padding: 0 4px;
+            margin-top: 5px;
+            padding: 0 6px;
+            font-weight: 500;
         }
 
         .streaming-indicator {
-            font-size: 0.75rem;
+            font-size: 0.78rem;
             color: #00f2fe;
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 0 20px 8px 20px;
-            animation: fade 1.5s infinite alternate;
+            padding: 0 20px 10px 20px;
+            font-weight: 600;
+            animation: fade 1.2s infinite alternate ease-in-out;
         }
 
         @keyframes fade {
-            0% { opacity: 0.6; }
+            0% { opacity: 0.5; }
             100% { opacity: 1; }
         }
 
         /* Input section */
         .input-area {
-            padding: 15px 20px 25px 20px;
-            background: rgba(10, 15, 30, 0.95);
+            padding: 16px 20px 30px 20px;
+            background: rgba(8, 12, 24, 0.85);
             border-top: 1px solid var(--border);
-            border-bottom-left-radius: 24px;
-            border-bottom-right-radius: 24px;
+            border-bottom-left-radius: 28px;
+            border-bottom-right-radius: 28px;
         }
 
         .form-container {
@@ -251,29 +308,37 @@
 
         input[type="text"] {
             flex: 1;
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.04);
             border: 1px solid var(--border);
-            padding: 12px 16px;
-            border-radius: 14px;
+            padding: 14px 18px;
+            border-radius: 16px;
             color: #fff;
             font-family: inherit;
-            font-size: 0.9rem;
+            font-size: 0.92rem;
             outline: none;
-            transition: border-color 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         input[type="text"]:focus {
             border-color: #00f2fe;
+            background: rgba(255, 255, 255, 0.07);
+            box-shadow: 0 0 16px rgba(0, 242, 254, 0.1);
+        }
+
+        input[type="text"]:disabled {
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            opacity: 0.8;
         }
 
         .btn {
-            padding: 12px 20px;
-            border-radius: 14px;
-            font-weight: 600;
+            padding: 14px 22px;
+            border-radius: 16px;
+            font-weight: 700;
             font-family: inherit;
             cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 0.9rem;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            font-size: 0.92rem;
             border: none;
             display: flex;
             align-items: center;
@@ -283,32 +348,42 @@
         .btn-send {
             background: var(--primary);
             color: #fff;
-            box-shadow: 0 4px 12px rgba(0, 242, 254, 0.2);
+            box-shadow: 0 6px 20px rgba(0, 242, 254, 0.15);
         }
 
-        .btn-send:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 18px rgba(0, 242, 254, 0.3);
+        .btn-send:hover:not(:disabled) {
+            transform: translateY(-1.5px);
+            box-shadow: 0 8px 24px rgba(0, 242, 254, 0.3);
+        }
+
+        .btn-send:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         .btn-send:disabled {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.15);
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
         }
 
         .btn-stop {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            background: var(--accent-stop);
             color: #fff;
             width: 100%;
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+            box-shadow: 0 6px 20px rgba(255, 8, 68, 0.2);
+            animation: pulse-stop-btn 1.5s infinite alternate ease-in-out;
+        }
+
+        @keyframes pulse-stop-btn {
+            0% { box-shadow: 0 6px 16px rgba(255, 8, 68, 0.15); }
+            100% { box-shadow: 0 6px 24px rgba(255, 8, 68, 0.35); }
         }
 
         .btn-stop:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 18px rgba(239, 68, 68, 0.3);
+            transform: translateY(-1.5px);
+            box-shadow: 0 8px 24px rgba(255, 8, 68, 0.35);
         }
     </style>
 </head>
@@ -451,6 +526,19 @@
                 lastReceivedIndex = -1;
             }
         });
+
+        socket.on('stream_error', (data) => {
+            console.error('Stream error:', data);
+            const errorMsg = data.error || 'An unexpected error occurred.';
+            if (activeMessageId || data.messageId) {
+                markMessageAsError(activeMessageId || data.messageId, errorMsg);
+            } else {
+                appendSystemMessage(`❌ Error: ${errorMsg}`);
+            }
+            setStreamingState(false);
+            activeMessageId = null;
+            lastReceivedIndex = -1;
+        });
     }
 
     // Connect immediately
@@ -570,6 +658,9 @@
     }
 
     function createBotMessagePlaceholder(messageId) {
+        if (document.getElementById(`msg-${messageId}`)) {
+            return;
+        }
         const msgDiv = document.createElement('div');
         msgDiv.className = 'message bot';
         msgDiv.id = `msg-${messageId}`;
@@ -612,6 +703,23 @@
         } else {
             bubble.innerText += ' 🛑 [Stream Stopped]';
         }
+        scrollToBottom();
+    }
+
+    function markMessageAsError(messageId, errorMessage) {
+        const msgDiv = document.getElementById(`msg-${messageId}`);
+        if (!msgDiv) return;
+
+        const bubble = msgDiv.querySelector('.bubble');
+        if (bubble.classList.contains('text-placeholder')) {
+            bubble.classList.remove('text-placeholder');
+            bubble.innerText = `❌ Error: ${errorMessage}`;
+        } else {
+            bubble.innerText += ` ❌ Error: ${errorMessage}`;
+        }
+        bubble.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+        bubble.style.background = 'rgba(239, 68, 68, 0.08)';
+        bubble.style.color = '#ef4444';
         scrollToBottom();
     }
 

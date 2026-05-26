@@ -311,10 +311,14 @@ struct MessageBubbleView: View {
         message.isUser ? Color.cyan.opacity(0.2) : Color.white.opacity(0.08)
     }
     
-    private func formattedTime(_ date: Date) -> String {
+    private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
-        return formatter.string(from: date)
+        return formatter
+    }()
+    
+    private func formattedTime(_ date: Date) -> String {
+        Self.timeFormatter.string(from: date)
     }
 }
 

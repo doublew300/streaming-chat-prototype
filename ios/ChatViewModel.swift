@@ -24,16 +24,20 @@ class ChatViewModel: ObservableObject {
     }
     
     private func setupBindings() {
-        // Bind connectionState from WebSocketManager
+        // Bind connectionState from WebSocketManager without retain cycles
         webSocketManager.$connectionState
             .receive(on: DispatchQueue.main)
-            .assign(to: \.connectionState, on: self)
+            .sink { [weak self] state in
+                self?.connectionState = state
+            }
             .store(in: &cancellables)
         
-        // Bind isStreaming from WebSocketManager
+        // Bind isStreaming from WebSocketManager without retain cycles
         webSocketManager.$isStreaming
             .receive(on: DispatchQueue.main)
-            .assign(to: \.isStreaming, on: self)
+            .sink { [weak self] streaming in
+                self?.isStreaming = streaming
+            }
             .store(in: &cancellables)
         
         // Setup chunk receiver
@@ -46,6 +50,12 @@ class ChatViewModel: ObservableObject {
         webSocketManager.onStreamCancelled = { [weak self] messageId in
             guard let self = self else { return }
             self.markAsCancelled(messageId: messageId)
+        }
+        
+        // Setup error receiver
+        webSocketManager.onStreamError = { [weak self] messageId, sessionId, error in
+            guard let self = self else { return }
+            self.markAsError(messageId: messageId, error: error)
         }
     }
     
@@ -128,5 +138,38 @@ class ChatViewModel: ObservableObject {
         }
         
         messages[index] = message
+    }
+    
+    private func markAsError(messageId: String?, error: String) {
+        if let msgId = messageId, let index = messages.firstIndex(where: { $0.id == msgId }) {
+            var message = messages[index]
+            message.isStreaming = false
+            if !message.text.isEmpty {
+                message.text += " ❌ [Error: \(error)]"
+            } else {
+                message.text = "❌ [Error: \(error)]"
+            }
+            messages[index] = message
+        } else if let index = messages.firstIndex(where: { $0.isStreaming }) {
+            // Fallback for session error (e.g. session expired) that doesn't have messageId
+            // Clears any active stream that might be stuck
+            var message = messages[index]
+            message.isStreaming = false
+            if !message.text.isEmpty {
+                message.text += " ❌ [Error: \(error)]"
+            } else {
+                message.text = "❌ [Error: \(error)]"
+            }
+            messages[index] = message
+        } else {
+            let errorChatMessage = ChatMessage(
+                id: UUID().uuidString,
+                text: "❌ Error: \(error)",
+                isUser: false,
+                timestamp: Date(),
+                isStreaming: false
+            )
+            messages.append(errorChatMessage)
+        }
     }
 }
