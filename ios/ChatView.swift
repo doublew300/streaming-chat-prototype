@@ -105,7 +105,7 @@ struct ChatView: View {
         .padding()
         .background(
             Color.white.opacity(0.03)
-                .background(VisualEffectBlur(material: .systemUltraThinMaterialDark))
+                .background(VisualEffectBlur(style: .systemUltraThinMaterialDark))
         )
         .onAppear {
             self.pulseActive = true
@@ -205,7 +205,7 @@ struct ChatView: View {
         .padding(.top, 8)
         .background(
             Color(red: 10/255, green: 15/255, blue: 30/255).opacity(0.85)
-                .background(VisualEffectBlur(material: .systemChromeMaterialDark))
+                .background(VisualEffectBlur(style: .systemChromeMaterialDark))
         )
     }
     
@@ -320,14 +320,14 @@ struct MessageBubbleView: View {
 
 // MARK: - Visual Effect Blur (Native UIKit Blur integration for SwiftUI)
 struct VisualEffectBlur: UIViewRepresentable {
-    var material: UIBlurEffect.Material
+    var style: UIBlurEffect.Style
     
     func makeUIView(context: Context) -> UIVisualEffectView {
-        UIVisualEffectView(effect: UIBlurEffect(style: material))
+        UIVisualEffectView(effect: UIBlurEffect(style: style))
     }
     
     func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
-        uiView.effect = UIBlurEffect(style: material)
+        uiView.effect = UIBlurEffect(style: style)
     }
 }
 

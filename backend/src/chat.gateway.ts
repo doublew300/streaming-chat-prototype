@@ -16,6 +16,7 @@ interface StreamSession {
   words: string[];
   sentChunks: string[];
   timer: NodeJS.Timeout | null;
+  cleanupTimeout: NodeJS.Timeout | null;
   isFinished: boolean;
   isCancelled: boolean;
 }
@@ -38,13 +39,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Predefined long texts (~500 words each) for the bot response
   private presetTexts = [
     // Story 1: The Swiss Clockmaker (approx 450 words)
-    `Deep in the heart of the Swiss Alps, in a valley where the morning mist clung to the pine trees like soft wool, lived an old clockmaker named Samuel. For fifty years, Samuel had worked in his small wooden workshop, surrounded by the gentle ticking of hundreds of clocks. To him, the sound was not a noise, but a living heartbeat. He crafted pocket watches, grandfather clocks, and intricate cuckoos, each one a masterpiece of gears and springs. The villagers said that Samuel didn't just build clocks; he put a tiny piece of his soul into each one. One chilly autumn afternoon, a young traveler arrived at Samuel’s shop. The traveler carried a broken watch of unusual design, made of dark brass and inlaid with strange blue stones. 'No one in Zurich or Geneva could fix this,' the traveler said, placing it on the velvet counter. Samuel put on his magnifying eyepiece and peered into the watch's delicate innards. Inside, he found a complex array of overlapping gears that moved not in circles, but in gentle waves. It was a water-clock mechanism shrunk to the size of a pocket watch. Smiling, Samuel spent the next three days and nights working under the warm light of his oil lamp. He carefully forged a new microscopic escape wheel, polished the axles, and oiled the gears with finest pine oil. On the fourth morning, as the sun broke over the snow-covered peaks, the brass watch began to tick, making a sound like tiny raindrops falling on a glass pane. The traveler was overjoyed and asked Samuel how he had succeeded where the master watchmakers of the cities had failed. Samuel smiled and replied, 'The others tried to force the watch to keep their time. I simply listened to the rhythm it wanted to keep.' From that day on, the valley seemed even more peaceful, and Samuel continued his work, reminding everyone that time is not something to be conquered, but a beautiful melody to be shared.`,
+    `Deep in the heart of the Swiss Alps, in a valley where the morning mist clung to the pine trees like soft wool, lived an old clockmaker named Samuel. For fifty years, Samuel had worked in his small wooden workshop, surrounded by the gentle ticking of hundreds of clocks. To him, the sound was not a noise, but a living heartbeat. He crafted pocket watches, grandfather clocks, and intricate cuckoos, each one a masterpiece of gears and springs. The villagers said that Samuel didn't just build clocks; he put a tiny piece of his soul into each one. One chilly autumn afternoon, a young traveler arrived at Samuel's shop. The traveler carried a broken watch of unusual design, made of dark brass and inlaid with strange blue stones. 'No one in Zurich or Geneva could fix this,' the traveler said, placing it on the velvet counter. Samuel put on his magnifying eyepiece and peered into the watch's delicate innards. Inside, he found a complex array of overlapping gears that moved not in circles, but in gentle waves. It was a water-clock mechanism shrunk to the size of a pocket watch. Smiling, Samuel spent the next three days and nights working under the warm light of his oil lamp. He carefully forged a new microscopic escape wheel, polished the axles, and oiled the gears with finest pine oil. On the fourth morning, as the sun broke over the snow-covered peaks, the brass watch began to tick, making a sound like tiny raindrops falling on a glass pane. The traveler was overjoyed and asked Samuel how he had succeeded where the master watchmakers of the cities had failed. Samuel smiled and replied, 'The others tried to force the watch to keep their time. I simply listened to the rhythm it wanted to keep.' From that day on, the valley seemed even more peaceful, and Samuel continued his work, reminding everyone that time is not something to be conquered, but a beautiful melody to be shared.`,
     
     // Story 2: The Whispering Library (approx 450 words)
     `In the forgotten city of Oakhaven, hidden behind an ivy-covered wall, stood the Whispering Library. Unlike normal libraries, the books here did not wait silently on shelves. Instead, they murmured softly in the dark, their pages rustling like dry leaves. If you walked down the narrow aisles and listened closely, you could hear fragments of ancient poems, recipes for forgotten stews, and the laughter of heroes from long-lost empires. The library's keeper was Elena, a quiet woman who wore spectacles on a silver chain. She knew every book by its voice. She knew that the leather-bound volume on shelf four was a dramatic play that loved to weep, and the small green diary in the corner was a shy romance that only spoke in whispers. One evening, a storm raged outside, throwing sheets of rain against the stained-glass windows. A young boy named Leo slipped into the library to seek shelter. As he stood shivering near the entrance, he was startled by a soft voice calling his name. He followed the sound deep into the oldest section, where the shelves reached high into the shadows. On a dusty reading table sat an open book with blank parchment pages. 'Welcome, Leo,' the book whispered in a warm, welcoming tone. 'I am the Book of Tomorrow, and I have been waiting for someone to write my stories.' Leo, who had always dreamed of being an adventurer but felt too small, took a black ink quill from the table. Encouraged by Elena, who watched from the shadows with a gentle smile, Leo began to write. He wrote about a boy who sailed across a sea of stars on a ship made of cloud. As he wrote, the blank pages began to glow with vibrant colors, and the library around him filled with the scent of stardust and ocean breeze. The other books clapped their pages in joy. Leo realized that he didn't need to wait for adventures to find him; he could create them with his own imagination, and the library would whisper his story forever.`,
     
     // Story 3: The Starfarer (approx 450 words)
-    `The starship Odyssey glided silently through the dark ocean of the cosmos, its silver hull reflecting the distant glow of a thousand nebulae. Inside, Commander Clara sat in the observation deck, watching the colorful dust clouds of the Orion arm swirl like paint in water. The ship was on a historic voyage to find a habitable world beyond the known solar systems, a journey that had already lasted seven long years. The crew of fifty scientists and explorers were mostly asleep in cryo-pods, leaving Clara and the ship’s artificial intelligence, Arthur, to steer through the vast emptiness. Clara looked at the holographic console. 'Arthur, how far to the next system?' she asked. The AI responded in a calm, melodic voice, 'We are three light-years away, Clara. All systems are stable, and the crew's bio-signals are perfect.' Clara sighed, feeling the weight of the endless empty space. She missed the green fields of Earth, the smell of damp grass after a summer shower, and the sound of birds singing in the morning. To pass the time, Clara often told Arthur stories of Earth, describing the simple beauty of things the machine could never physically experience. Suddenly, a bright red warning light flashed on the console. 'Alert,' Arthur reported, 'an asteroid swarm is approaching on a collision course. Shield power is at forty percent.' Clara's training immediately took over. She grabbed the manual flight controls, her fingers flying across the touchscreens. With expert precision, she steered the massive starship through the rocky debris, executing tight rolls and sudden thruster burns. Arthur calculated optimal trajectories in real-time, highlighting safe pathways in blue. A large boulder flew past the viewing port, missing the ship by mere meters, but they emerged into the clear space unharmed. As the warning lights turned off, Clara leaned back in her chair, her heart pounding. Arthur spoke softly, 'That was impressive piloting, Clara. It reminded me of your story about white-water rafting on the Colorado River.' Clara laughed, realizing that even in the cold depths of space, human spirit and memory kept them alive, steering them safely toward their new home.`
+    `The starship Odyssey glided silently through the dark ocean of the cosmos, its silver hull reflecting the distant glow of a thousand nebulae. Inside, Commander Clara sat in the observation deck, watching the colorful dust clouds of the Orion arm swirl like paint in water. The ship was on a historic voyage to find a habitable world beyond the known solar systems, a journey that had already lasted seven long years. The crew of fifty scientists and explorers were mostly asleep in cryo-pods, leaving Clara and the ship's artificial intelligence, Arthur, to steer through the vast emptiness. Clara looked at the holographic console. 'Arthur, how far to the next system?' she asked. The AI responded in a calm, melodic voice, 'We are three light-years away, Clara. All systems are stable, and the crew's bio-signals are perfect.' Clara sighed, feeling the weight of the endless empty space. She missed the green fields of Earth, the smell of damp grass after a summer shower, and the sound of birds singing in the morning. To pass the time, Clara often told Arthur stories of Earth, describing the simple beauty of things the machine could never physically experience. Suddenly, a bright red warning light flashed on the console. 'Alert,' Arthur reported, 'an asteroid swarm is approaching on a collision course. Shield power is at forty percent.' Clara's training immediately took over. She grabbed the manual flight controls, her fingers flying across the touchscreens. With expert precision, she steered the massive starship through the rocky debris, executing tight rolls and sudden thruster burns. Arthur calculated optimal trajectories in real-time, highlighting safe pathways in blue. A large boulder flew past the viewing port, missing the ship by mere meters, but they emerged into the clear space unharmed. As the warning lights turned off, Clara leaned back in her chair, her heart pounding. Arthur spoke softly, 'That was impressive piloting, Clara. It reminded me of your story about white-water rafting on the Colorado River.' Clara laughed, realizing that even in the cold depths of space, human spirit and memory kept them alive, steering them safely toward their new home.`
   ];
 
   handleConnection(client: Socket) {
@@ -80,8 +81,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    // Cancel any existing session for this client first to avoid overlapping streams
-    this.cleanupSession(sessionId);
+    // Force-remove any existing session for this client to avoid overlapping streams
+    // and prevent stale cleanup timeouts from deleting the new session
+    this.forceDeleteSession(sessionId);
 
     // Select a random long text
     const randomIndex = Math.floor(Math.random() * this.presetTexts.length);
@@ -97,6 +99,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       words,
       sentChunks: [],
       timer: null,
+      cleanupTimeout: null,
       isFinished: false,
       isCancelled: false,
     };
@@ -120,7 +123,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const session = this.sessions.get(sessionId);
     if (session && session.messageId === messageId) {
       session.isCancelled = true;
-      this.cleanupSession(sessionId);
+      // Immediately remove — no need to keep cancelled sessions for resume
+      this.forceDeleteSession(sessionId);
       client.emit('stream_cancelled', { messageId });
     }
   }
@@ -159,7 +163,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     }
 
-    // If the stream was already finished, make sure the client knows
+    // If the stream was already finished while offline, signal completion
     if (session.isFinished && missingStartIndex >= session.words.length) {
       client.emit('stream_chunk', {
         messageId: session.messageId,
@@ -179,7 +183,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const nextIndex = session.sentChunks.length;
     if (nextIndex >= session.words.length) {
       session.isFinished = true;
-      this.cleanupSession(sessionId);
+      this.scheduleSessionCleanup(sessionId);
       return;
     }
 
@@ -205,27 +209,51 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     if (session.isFinished) {
-      this.cleanupSession(sessionId);
+      this.scheduleSessionCleanup(sessionId);
     }
   }
 
-  private cleanupSession(sessionId: string) {
+  /**
+   * Immediately and completely removes a session — clears the streaming timer,
+   * cancels any pending delayed cleanup, and deletes from the map.
+   * Use this when starting a new stream or on explicit cancellation.
+   */
+  private forceDeleteSession(sessionId: string) {
     const session = this.sessions.get(sessionId);
     if (session) {
       if (session.timer) {
         clearInterval(session.timer);
         session.timer = null;
       }
-      // Keep completed sessions in memory briefly for reconnect buffers, 
-      // but clean up their timers so CPU is not wasted.
-      if (session.isFinished || session.isCancelled) {
-        // We can keep the session around for a bit (e.g. 5 minutes) to allow reconnects,
-        // then delete it to avoid memory leaks.
-        setTimeout(() => {
-          this.sessions.delete(sessionId);
-          console.log(`Session ${sessionId} memory released.`);
-        }, 5 * 60 * 1000); 
+      if (session.cleanupTimeout) {
+        clearTimeout(session.cleanupTimeout);
+        session.cleanupTimeout = null;
       }
+      this.sessions.delete(sessionId);
+      console.log(`Session ${sessionId} force-deleted.`);
+    }
+  }
+
+  /**
+   * Stops the streaming timer and schedules a delayed deletion (5 min) to allow
+   * late reconnects for finished streams. Used when a stream completes naturally.
+   */
+  private scheduleSessionCleanup(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      if (session.timer) {
+        clearInterval(session.timer);
+        session.timer = null;
+      }
+      // Cancel any previously scheduled cleanup to avoid double-delete
+      if (session.cleanupTimeout) {
+        clearTimeout(session.cleanupTimeout);
+      }
+      // Keep finished sessions briefly so a reconnecting client can still catch up
+      session.cleanupTimeout = setTimeout(() => {
+        this.sessions.delete(sessionId);
+        console.log(`Session ${sessionId} memory released.`);
+      }, 5 * 60 * 1000);
     }
   }
 }
